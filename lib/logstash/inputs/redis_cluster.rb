@@ -43,7 +43,7 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
 
   # The name of a Redis list or channel.
   # TODO: change required to true
-  config :keys, :validate => :string
+  config :keys, :validate => :array
 
   # Specify either list or channel.  If `redis\_type` is `list`, then we will BLPOP the
   # key.  If `redis\_type` is `channel`, then we will SUBSCRIBE to the key.
