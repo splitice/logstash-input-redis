@@ -23,7 +23,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "logstash-core", ">= 2.0.0.beta2", "< 3.0.0"
 
   s.add_runtime_dependency 'logstash-codec-json'
-  s.add_runtime_dependency 'redis-cluster'
+  s.add_runtime_dependency 'redis-rb-cluster'
 
   s.add_development_dependency 'logstash-devutils'
 end

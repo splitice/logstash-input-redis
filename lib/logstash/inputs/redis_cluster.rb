@@ -41,13 +41,9 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
   # Password to authenticate with. There is no authentication by default.
   config :password, :validate => :password
 
-  # The name of the Redis queue (we'll use BLPOP against this).
-  # TODO: remove soon.
-  config :queue, :validate => :string, :deprecated => true
-
   # The name of a Redis list or channel.
   # TODO: change required to true
-  config :key, :validate => :string, :required => false
+  config :keys, :validate => :string
 
   # Specify either list or channel.  If `redis\_type` is `list`, then we will BLPOP the
   # key.  If `redis\_type` is `channel`, then we will SUBSCRIBE to the key.
@@ -77,21 +73,12 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
   end
 
   def register
-    require 'redis-cluster'
+    require 'redis-rb-cluster'
     @redis_url = "redis://#{@password}@#{@host}:#{@port}/#{@db}"
 
     # TODO remove after setting key and data_type to true
-    if @queue
-      if @key || @data_type
-        raise RuntimeError.new(
-          "Cannot specify queue parameter and key or data_type"
-        )
-      end
-      @key = @queue
-      @data_type = 'list'
-    end
-
-    if !@key || !@data_type
+   
+    if !@keys || !@data_type
       raise RuntimeError.new(
         "Must define queue, or key and data_type parameters"
       )
@@ -113,7 +100,7 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
     end
 
     # TODO(sissel, boertje): set @identity directly when @name config option is removed.
-    @identity = @name != 'default' ? @name : "#{@redis_url} #{@data_type}:#{@key}"
+    @identity = @name != 'default' ? @name : "#{@redis_url} #{@data_type}"
     @logger.info("Registering Redis", :identity => @identity)
   end # def register
 
@@ -223,8 +210,8 @@ EOF
 
   # private
   def list_listener(redis, output_queue)
-
-    item = redis.blpop(@key, 0, :timeout => 1)
+	sampled = @keys.sample
+    item = redis.blpop(sampled, :timeout => 1)
     return unless item # from timeout or other conditions
 
     # blpop returns the 'key' read from as well as the item result
@@ -235,7 +222,7 @@ EOF
     return if !batched?
 
     begin
-      redis.evalsha(@redis_script_sha, [@key], [@batch_count-1]).each do |item|
+      redis.evalsha(@redis_script_sha, [sampled], [@batch_count-1]).each do |item|
         queue_event(item, output_queue)
       end
 
@@ -300,7 +287,7 @@ EOF
 
   # private
   def channel_listener(output_queue)
-    @redis.subscribe(@key) do |on|
+    @redis.subscribe(@keys.sample) do |on|
       on.subscribe do |channel, count|
         @logger.info("Subscribed", :channel => channel, :count => count)
       end
@@ -323,7 +310,7 @@ EOF
 
   # private
   def pattern_channel_listener(output_queue)
-    @redis.psubscribe @key do |on|
+    @redis.psubscribe @keys.sample do |on|
       on.psubscribe do |channel, count|
         @logger.info("Subscribed", :channel => channel, :count => count)
       end
