@@ -15,10 +15,10 @@ require "logstash/inputs/threadable"
 # `batch_count` note: If you use the `batch_count` setting, you *must* use a Redis version 2.6.0 or
 # newer. Anything older does not support the operations used by batching.
 #
-module LogStash module Inputs class Redis < LogStash::Inputs::Threadable
+module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
 # class LogStash::Inputs::Redis < LogStash::Inputs::Threadable
 
-  config_name "redis"
+  config_name "redis_cluster"
 
   default :codec, "json"
 
@@ -77,7 +77,7 @@ module LogStash module Inputs class Redis < LogStash::Inputs::Threadable
   end
 
   def register
-    require 'redis'
+    require 'redis-cluster'
     @redis_url = "redis://#{@password}@#{@host}:#{@port}/#{@db}"
 
     # TODO remove after setting key and data_type to true
@@ -152,7 +152,7 @@ module LogStash module Inputs class Redis < LogStash::Inputs::Threadable
 
   # private
   def internal_redis_builder
-    ::Redis.new(redis_params)
+    ::RedisCluster.new([redis_params],4)
   end
 
   # private
