@@ -215,7 +215,7 @@ EOF
   def list_listener(redis, output_queue)
 	if batched then	
 		error, item = redis.lpop(@key)
-		(1..@batch_count).each do |i|
+		for i in 1..@batch_count do
 			redis.lpop(@keys[i%@keys.length])
 		end.each do |item|
 			queue_event(item, output_queue) if item
