@@ -38,6 +38,9 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
   # Initial connection timeout in seconds.
   config :timeout, :validate => :number, :default => 5
 
+  # Initial connection timeout in seconds.
+  config :max_connections, :validate => :number, :default => 256
+
   # Password to authenticate with. There is no authentication by default.
   config :password, :validate => :password
 
@@ -139,7 +142,7 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
 
   # private
   def internal_redis_builder
-    ::RedisCluster.new([redis_params],4)
+    ::RedisCluster.new([redis_params], @max_connections)
   end
 
   # private
@@ -210,6 +213,17 @@ EOF
 
   # private
   def list_listener(redis, output_queue)
+	if batched then	
+		redis.pipelined do
+			error, item = redis.lpop(@key)
+			(1..@batch_count).each do |i|
+				redis.lpop(@keys[i%@keys.length])
+			end
+		end.each do |item|
+			queue_event(item, output_queue) if item
+		end
+	end
+  
 	sampled = @keys.sample
     item = redis.blpop(sampled, :timeout => 1)
     return unless item # from timeout or other conditions
