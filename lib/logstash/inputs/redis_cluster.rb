@@ -2,7 +2,7 @@
 require "logstash/namespace"
 require "logstash/inputs/base"
 require "logstash/inputs/threadable"
-require "redis/connection/hiredis"
+#require "redis/connection/hiredis"
 
 # This input will read events from a Redis instance; it supports both Redis channels and lists.
 # The list command (BLPOP) used by Logstash is supported in Redis v1.3.1+, and
@@ -31,7 +31,7 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
   config :host, :validate => :string, :default => "127.0.0.1"
   
   # The hostname of your Redis server.
-  config :driver, :validate => :string, :default => "hiredis"
+  config :driver, :validate => :string, :default => "ruby"
 
   # The port to connect on.
   config :port, :validate => :number, :default => 6379
@@ -140,7 +140,7 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
       :host => @host,
       :port => @port,
       :db => @db,
-      :password => @password.nil? ? nil : @password.value
+      :password => @password.nil? ? nil : @password.value,
 	  :driver => @driver,
 	  :timeout => @timeout
     }
