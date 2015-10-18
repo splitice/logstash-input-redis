@@ -231,38 +231,6 @@ EOF
     # blpop returns the 'key' read from as well as the item result
     # we only care about the result (2nd item in the list).
     queue_event(item.last, output_queue)
-
-    # If @batch_count is 1, there's no need to continue.
-    return if !batched?
-
-    begin
-      redis.evalsha(@redis_script_sha, [sampled], [@batch_count-1]).each do |item|
-        queue_event(item, output_queue)
-      end
-
-      # Below is a commented-out implementation of 'batch fetch'
-      # using pipelined LPOP calls. This in practice has been observed to
-      # perform exactly the same in terms of event throughput as
-      # the evalsha method. Given that the EVALSHA implementation uses
-      # one call to Redis instead of N (where N == @batch_count) calls,
-      # I decided to go with the 'evalsha' method of fetching N items
-      # from Redis in bulk.
-      #redis.pipelined do
-        #error, item = redis.lpop(@key)
-        #(@batch_count-1).times { redis.lpop(@key) }
-      #end.each do |item|
-        #queue_event(item, output_queue) if item
-      #end
-      # --- End commented out implementation of 'batch fetch'
-    rescue ::Redis::CommandError => e
-      if e.to_s =~ /NOSCRIPT/ then
-        @logger.warn("Redis may have been restarted, reloading Redis batch EVAL script", :exception => e);
-        load_batch_script(redis)
-        retry
-      else
-        raise e
-      end
-    end
   end
 
   # private
