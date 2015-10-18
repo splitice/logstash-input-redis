@@ -29,6 +29,9 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
 
   # The hostname of your Redis server.
   config :host, :validate => :string, :default => "127.0.0.1"
+  
+  # The hostname of your Redis server.
+  config :driver, :validate => :string, :default => "hiredis"
 
   # The port to connect on.
   config :port, :validate => :number, :default => 6379
@@ -138,12 +141,14 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
       :port => @port,
       :db => @db,
       :password => @password.nil? ? nil : @password.value
+	  :driver => @driver,
+	  :timeout => @timeout
     }
   end
 
   # private
   def internal_redis_builder
-    ::RedisCluster.new([redis_params], @max_connections, {:timeout => @timeout})
+    ::RedisCluster.new([redis_params], @max_connections)
   end
 
   # private
