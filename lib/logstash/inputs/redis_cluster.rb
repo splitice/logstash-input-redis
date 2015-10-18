@@ -2,6 +2,7 @@
 require "logstash/namespace"
 require "logstash/inputs/base"
 require "logstash/inputs/threadable"
+require "redis/connection/hiredis"
 
 # This input will read events from a Redis instance; it supports both Redis channels and lists.
 # The list command (BLPOP) used by Logstash is supported in Redis v1.3.1+, and
@@ -79,6 +80,7 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
     require 'redis-rb-cluster'
     @redis_url = "redis://#{@password}@#{@host}:#{@port}/#{@db}"
 
+	@batch_offset = Random.rand(1024)
     # TODO remove after setting key and data_type to true
    
     if !@keys || !@data_type
@@ -134,7 +136,6 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
     {
       :host => @host,
       :port => @port,
-      :timeout => @timeout,
       :db => @db,
       :password => @password.nil? ? nil : @password.value
     }
@@ -142,13 +143,12 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
 
   # private
   def internal_redis_builder
-    ::RedisCluster.new([redis_params], @max_connections)
+    ::RedisCluster.new([redis_params], @max_connections, {:timeout => @timeout})
   end
 
   # private
   def connect
     redis = new_redis_instance
-    load_batch_script(redis) if batched? && is_list_type?
     redis
   end # def connect
 
@@ -213,11 +213,11 @@ EOF
 
   # private
   def list_listener(redis, output_queue)
-	if batched then	
-		error, item = redis.lpop(@key)
+	if batched? then	
 		for i in 1..@batch_count do
-			error,item = redis.lpop(@keys[i%@keys.length])
+			error,item = redis.lpop(@keys[(i+@batch_offset)%(@keys.length)])
 			queue_event(item, output_queue) if item
+			@batch_offset += 1
 		end
 	end
   
