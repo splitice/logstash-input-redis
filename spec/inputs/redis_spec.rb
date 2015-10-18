@@ -1,7 +1,7 @@
 require "logstash/devutils/rspec/spec_helper"
 require "redis"
 require "stud/try"
-require 'logstash/inputs/redis'
+require 'logstash/inputs/redis_cluster'
 
 def populate(key, event_count)
   require "logstash/event"
@@ -26,7 +26,7 @@ end # process
 
 # integration tests ---------------------
 
-describe "inputs/redis", :redis => true do
+describe "inputs/redis_cluster", :redis => true do
 
   it "should read events from a list" do
     key = 10.times.collect { rand(10).to_s }.join("")
@@ -67,7 +67,7 @@ end
 
 # unit tests ---------------------
 
-describe LogStash::Inputs::Redis do
+describe LogStash::Inputs::RedisCluster do
   let(:redis) { double('redis') }
   let(:builder) { ->{ redis } }
   let(:connection) { double('redis_connection') }
@@ -78,7 +78,7 @@ describe LogStash::Inputs::Redis do
   let(:accumulator) { [] }
 
   subject do
-    LogStash::Plugin.lookup("input", "redis")
+    LogStash::Plugin.lookup("input", "redis_cluster")
       .new(cfg).add_external_redis_builder(builder)
   end
 
@@ -241,7 +241,7 @@ describe LogStash::Inputs::Redis do
 
   describe LogStash::Inputs::Redis do
     it_behaves_like "an interruptible input plugin" do
-      let(:config) { {'key' => 'foo', 'data_type' => 'list'} }
+      let(:config) { {'keys' => ['foo'], 'data_type' => 'list'} }
     end
   end
 end
