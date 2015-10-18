@@ -214,11 +214,9 @@ EOF
   # private
   def list_listener(redis, output_queue)
 	if batched then	
-		redis.pipelined do
-			error, item = redis.lpop(@key)
-			(1..@batch_count).each do |i|
-				redis.lpop(@keys[i%@keys.length])
-			end
+		error, item = redis.lpop(@key)
+		(1..@batch_count).each do |i|
+			redis.lpop(@keys[i%@keys.length])
 		end.each do |item|
 			queue_event(item, output_queue) if item
 		end
