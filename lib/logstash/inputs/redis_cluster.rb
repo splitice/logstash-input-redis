@@ -216,8 +216,7 @@ EOF
 	if batched then	
 		error, item = redis.lpop(@key)
 		for i in 1..@batch_count do
-			redis.lpop(@keys[i%@keys.length])
-		end.each do |item|
+			error,item = redis.lpop(@keys[i%@keys.length])
 			queue_event(item, output_queue) if item
 		end
 	end
