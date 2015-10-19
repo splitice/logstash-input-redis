@@ -2,7 +2,6 @@
 require "logstash/namespace"
 require "logstash/inputs/base"
 require "logstash/inputs/threadable"
-#require "redis/connection/hiredis"
 
 # This input will read events from a Redis instance; it supports both Redis channels and lists.
 # The list command (BLPOP) used by Logstash is supported in Redis v1.3.1+, and
@@ -31,7 +30,7 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
   config :host, :validate => :string, :default => "127.0.0.1"
   
   # The hostname of your Redis server.
-  config :driver, :validate => :string, :default => "ruby"
+  config :driver, :validate => :string, :default => "jedis"
 
   # The port to connect on.
   config :port, :validate => :number, :default => 6379
@@ -80,11 +79,20 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
   end
 
   def register
-    require 'redis-rb-cluster'
     @redis_url = "redis://#{@password}@#{@host}:#{@port}/#{@db}"
 
 	@batch_offset = Random.rand(1024)
     # TODO remove after setting key and data_type to true
+	
+	
+	if @driver == "jedis" then
+		require 'org/apache/commons/commons-pool2/2.3/commons-pool2-2.3.jar'
+		require 'redis/clients/jedis/2.7.2/jedis-2.7.2.jar'
+		@error_handler = method(:error_handler_jedis)
+	else
+		require 'org/apache/commons/commons-pool2/2.3/redis-rb-cluster'
+		@error_handler = method(:error_handler_redis)
+	end
    
     if !@keys || !@data_type
       raise RuntimeError.new(
@@ -148,7 +156,13 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
 
   # private
   def internal_redis_builder
-    ::RedisCluster.new([redis_params], @max_connections)
+	if @driver == "jedis" then
+		import "redis.clients.jedis.JedisCluster"
+		import "redis.clients.jedis.HostAndPort"
+		::JedisCluster.new(java.util.HashSet.new([HostAndPort.new(redis_params[:host],redis_params[:port])]))
+	else
+		::RedisCluster.new([redis_params], @max_connections)
+	end
   end
 
   # private
@@ -198,21 +212,46 @@ EOF
     @redis.quit rescue nil
     @redis = nil
   end
-
+  
   # private
-  def list_runner(output_queue)
-    while !stop?
-      begin
-        @redis ||= connect
-        list_listener(@redis, output_queue)
+  def error_handler_redis(func)
+	begin
+        func.call
       rescue ::Redis::BaseError => e
         @logger.warn("Redis connection problem", :exception => e)
         # Reset the redis variable to trigger reconnect
         @redis = nil
-        # this sleep does not need to be stoppable as its
-        # in a while !stop? loop
-        sleep 1
+        
+		return false
       end
+	  
+	  return true
+  end
+  
+  def error_handler_jedis(func)
+	import "redis.clients.jedis.exceptions.JedisException"
+	begin
+        func.call
+	  rescue ::JedisException => e
+		@logger.warn("Redis connection problem", :exception => e)
+		# Reset the redis variable to trigger reconnect
+		@redis = nil
+		
+		return false
+	  end
+	  
+	  return true
+  end
+
+  # private
+  def list_runner(output_queue)
+    while !stop?
+		if !@error_handler.call(lambda {
+			@redis ||= connect
+			list_listener(@redis, output_queue)
+		}) then
+			sleep 1
+		end
     end
   end
 
@@ -227,7 +266,11 @@ EOF
 	end
   
 	sampled = @keys.sample
-    item = redis.blpop(sampled, :timeout => 1)
+	if @driver == "jedis" then
+		item = redis.blpop(1, sampled)
+	else
+		item = redis.blpop(sampled, :timeout => 1)
+	end
     return unless item # from timeout or other conditions
 
     # blpop returns the 'key' read from as well as the item result
@@ -240,7 +283,9 @@ EOF
     return if @redis.nil? || !@redis.connected?
     # if its a SubscribedClient then:
     # it does not have a disconnect method (yet)
-    if @redis.client.is_a?(::Redis::SubscribedClient)
+	if @driver == "jedis" then
+	  @redis.quit
+    elsif @redis.client.is_a?(::Redis::SubscribedClient)
       @redis.client.unsubscribe
     else
       @redis.client.disconnect
@@ -250,16 +295,16 @@ EOF
 
   # private
   def redis_runner
-    begin
+	if @error_handler.call(lambda {
       @redis ||= connect
+	}) then
       yield
-    rescue ::Redis::BaseError => e
-      @logger.warn("Redis connection problem", :exception => e)
+	else
       # Reset the redis variable to trigger reconnect
       @redis = nil
       Stud.stoppable_sleep(1) { stop? }
       retry if !stop?
-    end
+	end
   end
 
   # private
