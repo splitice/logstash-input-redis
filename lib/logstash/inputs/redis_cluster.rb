@@ -275,7 +275,12 @@ EOF
 
     # blpop returns the 'key' read from as well as the item result
     # we only care about the result (2nd item in the list).
-    queue_event(item.last, output_queue)
+    if @driver == "jedis" then
+        item = item.get(item.size()-1);
+    else
+        item = item.last
+    end
+    queue_event(item, output_queue)
   end
 
   # private
