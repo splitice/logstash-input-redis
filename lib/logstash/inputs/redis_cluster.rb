@@ -259,10 +259,14 @@ EOF
   def list_listener(redis, output_queue)
 	if batched? then	
 		for i in 1..@batch_count do
-			error,item = redis.lpop(@keys[(i+@batch_offset)%(@keys.length)])
+			if @driver == "jedis" then
+				item = redis.lpop(@keys[(i+@batch_offset)%(@keys.length)])
+			else
+				error,item = redis.lpop(@keys[(i+@batch_offset)%(@keys.length)])
+			end
 			queue_event(item, output_queue) if item
-			@batch_offset += 1
 		end
+		@batch_offset += 1
 	end
   
 	sampled = @keys.sample
