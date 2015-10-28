@@ -24,7 +24,7 @@ Gem::Specification.new do |s|
 
   s.add_runtime_dependency 'logstash-codec-json'
   s.add_runtime_dependency "hiredis", "~> 0.4.0"
-  s.add_runtime_dependency 'redis-rb-cluster'
+  s.add_runtime_dependency 'redis-rb-cluster', :git => "git://github.com/splitice/redis-rb-cluster.git"
 
   s.add_development_dependency 'logstash-devutils'
 end
