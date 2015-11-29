@@ -89,9 +89,6 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
 		require 'org/apache/commons/commons-pool2/2.3/commons-pool2-2.3.jar'
 		require 'redis/clients/jedis/2.7.2/jedis-2.7.2.jar'
 		@error_handler = method(:error_handler_jedis)
-	else
-		require 'org/apache/commons/commons-pool2/2.3/redis-rb-cluster'
-		@error_handler = method(:error_handler_redis)
 	end
    
     if !@keys || !@data_type
@@ -160,8 +157,6 @@ module LogStash module Inputs class RedisCluster < LogStash::Inputs::Threadable
 		import "redis.clients.jedis.JedisCluster"
 		import "redis.clients.jedis.HostAndPort"
 		::JedisCluster.new(java.util.HashSet.new([HostAndPort.new(redis_params[:host],redis_params[:port])]))
-	else
-		::RedisCluster.new([redis_params], @max_connections)
 	end
   end
 
@@ -264,8 +259,6 @@ EOF
 			for i in 1..@batch_count do
 				if @driver == "jedis" then
 					item = redis.lpop(@keys[f])
-				else
-					error,item = redis.lpop(@keys[f])
 				end
 				if item then
 					fail = 0
@@ -282,8 +275,6 @@ EOF
 	sampled = @keys.sample
 	if @driver == "jedis" then
 		item = redis.blpop(1, sampled)
-	else
-		item = redis.blpop(sampled, :timeout => 1)
 	end
     return unless item # from timeout or other conditions
 
@@ -291,8 +282,6 @@ EOF
     # we only care about the result (2nd item in the list).
     if @driver == "jedis" then
         item = item.get(item.size()-1);
-    else
-        item = item.last
     end
     queue_event(item, output_queue)
   end
@@ -304,10 +293,6 @@ EOF
     # it does not have a disconnect method (yet)
 	if @driver == "jedis" then
 	  @redis.quit
-    elsif @redis.client.is_a?(::Redis::SubscribedClient)
-      @redis.client.unsubscribe
-    else
-      @redis.client.disconnect
     end
     @redis = nil
   end
