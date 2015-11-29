@@ -257,16 +257,26 @@ EOF
 
   # private
   def list_listener(redis, output_queue)
-	if batched? then	
-		for i in 1..@batch_count do
-			if @driver == "jedis" then
-				item = redis.lpop(@keys[(i+@batch_offset)%(@keys.length)])
-			else
-				error,item = redis.lpop(@keys[(i+@batch_offset)%(@keys.length)])
+	if batched? then
+		fail = 0
+	    begin
+			f = @batch_offset%(@keys.length)
+			for i in 1..@batch_count do
+				if @driver == "jedis" then
+					item = redis.lpop(@keys[f])
+				else
+					error,item = redis.lpop(@keys[f])
+				end
+				if item then
+					fail = 0
+					queue_event(item, output_queue) 
+				else
+					fail = fail + 1
+					break
+				end
 			end
-			queue_event(item, output_queue) if item
-		end
-		@batch_offset += 1
+			@batch_offset += 1
+		end until fail>=3
 	end
   
 	sampled = @keys.sample
