@@ -202,9 +202,9 @@ EOF
 
   # private
   def list_stop
-    return if @redis.nil? || !@redis.connected?
+    return if @redis.nil?
 
-    @redis.quit rescue nil
+    @redis.close rescue nil
     @redis = nil
   end
   
